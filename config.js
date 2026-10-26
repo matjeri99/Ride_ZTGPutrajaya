@@ -4,7 +4,7 @@
 window.RIDE_CONFIG = {
   rideId: 'CAM2026',
   sheetEditUrl: 'https://docs.google.com/spreadsheets/d/16RRcM5o2-p18DGZ8RnYecVsU_CVU9Rzznu7aDbI0484/edit',
-  appsScriptUrl: '', // After deploying apps-script/Code.gs, paste Web App /exec URL here
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbwWIsWkKlLvganKfYk0EASPkf5yYLlY8Bcw0X6TgNyY6XrBMe5v32D4X4w15N8DsTFI/exec', // After deploying apps-script/Code.gs, paste Web App /exec URL here
   firebase: {
     apiKey: '', // Firebase WEB API key is public; never use admin/service-account credentials
     authDomain: '',
