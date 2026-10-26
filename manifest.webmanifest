@@ -1,0 +1,15 @@
+{
+  "name": "Zontes Putrajaya Ride Hub",
+  "short_name": "Zontes Ride",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1814",
+  "theme_color": "#111c18",
+  "description": "Zontes Putrajaya Riders - Ride Hub",
+  "icons": [
+    {"src":"./assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"./assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"}
+  ]
+}

@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function memberPath() { return /databases/$(database)/documents/members/$(request.auth.uid); }
+    function approved() { return signedIn() && exists(memberPath()) && get(memberPath()).data.active == true; }
+    function staff() { return approved() && get(memberPath()).data.role in ['admin','captain','marshal']; }
+    function admin() { return approved() && get(memberPath()).data.role == 'admin'; }
+
+    match /members/{uid} {
+      // Members see their own profile. Staff can monitor participation.
+      allow get: if signedIn() && (request.auth.uid == uid || staff());
+      allow list: if staff();
+      allow create, delete: if false; // Bootstrap and approval via Firebase Console/Admin SDK only
+      allow update: if approved() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt'])
+        && request.resource.data.lastSeenAt == request.time;
+    }
+    match /rides/{rideId}/messages/{messageId} {
+      allow read: if approved();
+      allow create: if approved()
+        && request.resource.data.keys().hasOnly(['uid','displayName','text','kind','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.displayName == get(memberPath()).data.displayName
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && request.resource.data.kind in ['chat','announcement']
+        && (request.resource.data.kind == 'chat' || staff())
+        && request.resource.data.createdAt == request.time;
+      allow update,delete: if false;
+    }
+    match /{document=**} { allow read,write: if false; }
+  }
+}
