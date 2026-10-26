@@ -11,12 +11,27 @@
   <title>Zontes Putrajaya Ride Hub</title>
   <link rel="icon" href="./assets/icon-192.png"><link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./styles.css">
+  <!-- Lightweight desktop-only buttons; does not change the existing phone / PWA navigation. -->
+  <style>
+    @media (max-width:650px) { .topnav .hub-desktop-nav { display:none !important; } }
+    @media (min-width:651px) {
+      .topnav .hub-desktop-nav { padding:13px 15px; background:#304c3c; white-space:nowrap; }
+      .topnav .hub-desktop-nav:disabled { opacity:.40; cursor:default; transform:none; }
+    }
+    @media (min-width:651px) and (max-width:1150px) {
+      .topbar { flex-wrap:wrap; }
+      .topnav { width:100%; justify-content:flex-end; }
+    }
+  </style>
 </head>
 <body>
   <div id="app">
     <header class="topbar">
       <div class="brand" role="banner"><img src="./assets/zontes-logo.jpg" alt="Logo Zontes Putrajaya" class="brand-logo"><div><span class="brand-main">RIDE HUB</span><small>PUTRAJAYA RIDERS</small></div></div>
       <nav class="topnav" aria-label="Navigasi utama">
+        <!-- Desktop web navigation only: mobile/PWA bar remains unchanged. -->
+        <button class="navbtn hub-desktop-nav" id="hubDesktopBack" type="button" aria-label="Kembali ke halaman sebelumnya">← Back</button>
+        <button class="navbtn hub-desktop-nav" type="button" data-view="home" aria-label="Kembali ke Home">⌂ Home</button>
         <button class="navbtn" data-view="rides">📁 <span>All Rides</span></button>
         <button class="navbtn" data-view="gallery">📸 <span>Gallery</span></button>
         <button class="navbtn active" data-view="chat">💬 <span>Crew Chat</span></button>
@@ -38,5 +53,62 @@
   </div>
   <script src="./config.js"></script>
   <script type="module" src="./app.js"></script>
+  <!-- Desktop navigation + real browser history without changing app.js/config.js. -->
+  <script>
+  (() => {
+    'use strict';
+    const back = document.getElementById('hubDesktopBack');
+    if (!back) return;
+    const allowed = new Set(['home', 'riders', 'itinerary', 'gallery', 'rides', 'chat', 'monitor', 'admin']);
+    const current = () => (location.hash.replace(/^#/, '') || 'home');
+    let pages = [current()];
+    let position = 0;
+    const update = () => {
+      back.disabled = position === 0 && current() === 'home';
+      back.title = back.disabled ? 'Sudah berada di Home' : 'Kembali ke paparan sebelumnya';
+    };
+    // Capture routing clicks before the existing app.js handler; keep original behavior.
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('#hubDesktopBack')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (position > 0) {
+          history.back();
+        } else if (current() !== 'home') {
+          // Deep-linked page opened directly: return safely to Home.
+          location.hash = '#home';
+          pages = ['home'];
+          position = 0;
+          update();
+        }
+        return;
+      }
+      const button = event.target.closest('[data-view], [data-ride]');
+      if (!button) return;
+      const destination = button.hasAttribute('data-ride') ? 'home' : button.getAttribute('data-view');
+      if (!allowed.has(destination) || destination === current()) return;
+      pages = pages.slice(0, position + 1);
+      pages.push(destination);
+      position++;
+      // pushState creates an actual browser history entry. Existing app.js can
+      // continue rendering normally and replaceState the current entry.
+      history.pushState({ zontesNav: true }, '', '#' + destination);
+      update();
+    }, true);
+    window.addEventListener('popstate', () => {
+      const page = current();
+      if (position > 0 && pages[position - 1] === page) position--;
+      else if (position + 1 < pages.length && pages[position + 1] === page) position++;
+      else {
+        const at = pages.lastIndexOf(page);
+        if (at >= 0) position = at;
+        else { pages = [page]; position = 0; }
+      }
+      update();
+    });
+    window.addEventListener('hashchange', update);
+    update();
+  })();
+  </script>
 </body>
 </html>
