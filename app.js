@@ -37,7 +37,41 @@ function staff(){return !!(profile?.active&&['admin','captain','marshal'].includ
 function show(viewName='home'){currentView=views[viewName]?viewName:'home';view.innerHTML=views[currentView]();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===currentView));if(currentView==='riders')renderRiderList();if(currentView==='chat')startChatStream();if(currentView==='monitor')startMemberStream();sourceBanner();if(currentView==='home')updateInstallButton();history.replaceState(null,'',`#${currentView}`)}
 function jsonp(url){return new Promise((resolve,reject)=>{const cb='ZontesFeed'+Math.floor(Math.random()*1e8);const script=document.createElement('script');const timer=setTimeout(()=>cleanup(new Error('API timeout')),12000);const cleanup=(err,val)=>{clearTimeout(timer);script.remove();delete window[cb];err?reject(err):resolve(val)};window[cb]=(res)=>cleanup(null,res);script.onerror=()=>cleanup(new Error('API error'));const divider=url.includes('?')?'&':'?';script.src=url+divider+'callback='+encodeURIComponent(cb)+'&v='+Date.now();document.head.appendChild(script)})}
 async function refreshFeed(){if(!cfg.appsScriptUrl){dataMode='snapshot';sourceBanner();return}try{const remote=await jsonp(cfg.appsScriptUrl);if(!Array.isArray(remote.participants)||!Array.isArray(remote.rides)||!Array.isArray(remote.itinerary))throw new Error('Invalid schema');data=remote;dataMode='live';if(!getRide())rideId=data.rides[0]?.id;show(currentView)}catch(err){dataMode='snapshot';banner('Sambungan Google Sheets terganggu; paparan mungkin menggunakan data terakhir.', 'warning');console.warn('Sheet sync failed',err)}}
-function updateInstallButton(){const b=$('#installButton');if(!b)return;b.onclick=()=>{if(installPrompt){installPrompt.prompt();installPrompt.userChoice.then(()=>installPrompt=null)}else alert('Android: Chrome → menu ⋮ → Add to Home screen / Install app. iPhone: Safari → Share → Add to Home Screen. PWA memerlukan hosting HTTPS.')}}
+// PWA install handling: the native prompt is only available on supported browsers.
+let pwaInstalledThisSession=false;
+function appIsStandalone(){
+  return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+function installInstructions(){
+  const ua=navigator.userAgent||'';
+  const ios=/iPhone|iPad|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const android=/Android/i.test(ua);
+  const inApp=/FBAN|FBAV|Instagram|MicroMessenger|WhatsApp|Line\/|; wv\b/i.test(ua);
+  if(inApp)return 'Pautan ini mungkin sedang dibuka dalam pelayar WhatsApp / aplikasi lain.\n\nBuka menu pelayar (⋮ / Share), pilih "Open in browser" atau "Buka di pelayar", kemudian gunakan Chrome (Android) atau Safari (iPhone).';
+  if(ios)return 'iPhone / iPad:\n1. Buka pautan ini dalam Safari.\n2. Tekan Share (ikon kotak dengan anak panah ke atas).\n3. Pilih Add to Home Screen.\n4. Tekan Add.\n\niPhone tidak memaparkan pemasangan automatik melalui butang laman web.';
+  if(android)return 'Android:\n1. Buka pautan menggunakan Google Chrome.\n2. Tekan menu ⋮ pada Chrome.\n3. Pilih Install app atau Add to Home screen.\n4. Sahkan pemasangan.\n\nJika tiada pilihan Install app, semak sambungan Internet dan pastikan aplikasi belum dipasang. Jika hanya Add to Home screen tersedia, gunakan pilihan itu dahulu.';
+  return 'Di komputer: buka laman ini menggunakan Chrome / Edge, kemudian pilih Install daripada menu pelayar (jika tersedia).\n\nDi iPhone: Safari → Share → Add to Home Screen.';
+}
+function updateInstallButton(){
+  const b=$('#installButton');
+  if(!b)return;
+  if(appIsStandalone() || pwaInstalledThisSession){b.style.display='none';return;}
+  b.style.removeProperty('display');
+  b.textContent=installPrompt?'⬇ Install PWA':'📲 Cara Install';
+  b.onclick=async()=>{
+    if(installPrompt){
+      const promptEvent=installPrompt;
+      installPrompt=null; // One BeforeInstallPromptEvent may only be used once.
+      updateInstallButton();
+      try{
+        const result=await promptEvent.prompt();
+        if(result?.outcome==='dismissed')alert('Pemasangan dibatalkan. Untuk cuba lagi, gunakan menu Chrome ⋮ → Install app / Add to Home screen.');
+      }catch(err){console.warn('PWA install prompt unavailable',err);alert(installInstructions());}
+      return;
+    }
+    alert(installInstructions());
+  };
+}
 let chatUnsub=null,monitorUnsub=null;
 function teardownStreams(){chatUnsub?.();chatUnsub=null;monitorUnsub?.();monitorUnsub=null}
 async function initFirebase(){const f=cfg.firebase;if(!f?.apiKey||!f?.projectId||!f?.appId)return;
@@ -65,8 +99,9 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{if(e.target.id==='riderSearch')renderRiderList(e.target.value)});
 document.addEventListener('submit',async e=>{if(e.target.id!=='chatForm')return;e.preventDefault();if(!firebase||!user||!profile?.active)return;const text=$('#messageText').value.trim();const kind=$('#messageKind')?.value||'chat';if(!text||text.length>1000)return;const button=$('#chatForm button[type=submit]');button.disabled=true;try{await firebase.addDoc(firebase.collection(firebase.db,'rides',rideId,'messages'),{uid:user.uid,displayName:profile.displayName,text,kind,createdAt:firebase.serverTimestamp()});$('#messageText').value='';$('#chatError').textContent=''}catch(err){$('#chatError').textContent='Tidak berjaya menghantar mesej. Semak akaun dan rangkaian.';console.warn(err)}finally{button.disabled=false}});
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;updateInstallButton()});
+window.addEventListener('appinstalled',()=>{installPrompt=null;pwaInstalledThisSession=true;updateInstallButton()});
 window.addEventListener('hashchange',()=>{teardownStreams();show(location.hash.slice(1)||'home')});
 window.addEventListener('online',()=>{refreshFeed()});
-if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(console.warn);
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(console.warn);
 show(location.hash.slice(1)||'home');refreshFeed();initFirebase();
 setInterval(()=>{if(document.visibilityState==='visible'&&cfg.appsScriptUrl)refreshFeed()},120000);
