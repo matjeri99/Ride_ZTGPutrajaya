@@ -1,6 +1,6 @@
 // Zontes Putrajaya Ride Hub — resilient network-first offline cache.
 // This Service Worker does not touch Firebase Authentication or Firestore messages.
-const VERSION='zontes-ride-v1.0.5';
+const VERSION='zontes-ride-v1.0.6';
 const ASSETS=[
   './','./index.html','./styles.css','./app.js','./config.js','./data.js',
   './manifest.webmanifest','./assets/zontes-logo.jpg','./assets/cameron-convoy.jpg',
